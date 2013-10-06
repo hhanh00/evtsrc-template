@@ -5,20 +5,27 @@ import org.eligosource.eventsourced.core._
 import org.eligosource.eventsourced.journal.leveldb.LeveldbJournalProps
 import java.io.File
 
-trait ProcT { this: Actor =>
+trait ProcT { this: Actor with Eventsourced with Stash =>
   val r: ActorRef
   def receive(): Receive = {
+    case i: Int => println(s"stash $i") ; stash()
+    case m: Message => become(after())
+      unstashAll() 
+  }
+  
+  def after(): Receive = {
+    case i: Int => println(i)
     case m: Message => r ! m.event
   }
 }
 
 class R extends Actor {
   def receive = {
-    case Proc.Beep(x) => println(x)
+    case x => println(x)
   }
 }
 
-class Proc(ra: ActorRef) extends ProcT with Eventsourced with Actor {
+class Proc(ra: ActorRef) extends ProcT with Eventsourced with Actor with Stash {
   val r = ra
   val id = 1
 }
@@ -34,6 +41,7 @@ object ProcApp extends App {
   
   val r = system.actorOf(Props(classOf[R]))
   val proc = extension.processorOf(Props(classOf[Proc], r))
+  proc ! 10
   extension.recover()
   proc ! Message(Proc.Beep("hello"))
 }
