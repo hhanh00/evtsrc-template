@@ -5,10 +5,22 @@ import org.eligosource.eventsourced.core._
 import org.eligosource.eventsourced.journal.leveldb.LeveldbJournalProps
 import java.io.File
 
-class Proc extends Actor {
-  def receive = {
-    case Proc.Beep(text) => println(text)
+trait ProcT { this: Actor =>
+  val r: ActorRef
+  def receive(): Receive = {
+    case m: Message => r ! m.event
   }
+}
+
+class R extends Actor {
+  def receive = {
+    case Proc.Beep(x) => println(x)
+  }
+}
+
+class Proc(ra: ActorRef) extends ProcT with Eventsourced with Actor {
+  val r = ra
+  val id = 1
 }
 
 object Proc {
@@ -20,7 +32,8 @@ object ProcApp extends App {
   val journal = LeveldbJournalProps(new File("target/data"), native = false).createJournal
   val extension = EventsourcingExtension(system, journal)
   
-  val proc = extension.processorOf(Props(new Proc with Receiver with Eventsourced {val id = 1}))
+  val r = system.actorOf(Props(classOf[R]))
+  val proc = extension.processorOf(Props(classOf[Proc], r))
   extension.recover()
   proc ! Message(Proc.Beep("hello"))
 }
